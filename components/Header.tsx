@@ -26,6 +26,15 @@ export default function Header() {
               About
             </Link>
           </li>
+
+            <li>
+              <Link
+                href="/projects"
+                className="transition-colors hover:text-blue-400"
+              >
+                Projects
+              </Link>
+          </li>
         </ul>
       </nav>
     </header>
