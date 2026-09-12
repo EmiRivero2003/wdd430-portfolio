@@ -1,3 +1,5 @@
+import ApiProjectList from "@/components/ApiProjectList";
+
 export default function SchoolProjectsPage() {
   return (
     <main className="mx-auto w-full max-w-5xl px-6 py-16">
@@ -13,6 +15,8 @@ export default function SchoolProjectsPage() {
         These academic projects demonstrate the skills and technologies I
         have developed throughout my software development courses.
       </p>
+
+      <ApiProjectList endpoint="/api/projects?type=school" />
     </main>
   );
 }

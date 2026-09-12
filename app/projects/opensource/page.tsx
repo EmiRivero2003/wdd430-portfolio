@@ -1,3 +1,5 @@
+import ApiProjectList from "@/components/ApiProjectList";
+
 export default function OpenSourceProjectsPage() {
   return (
     <main className="mx-auto w-full max-w-5xl px-6 py-16">
@@ -13,6 +15,8 @@ export default function OpenSourceProjectsPage() {
         These projects are publicly available for collaboration, learning,
         and continued improvement.
       </p>
+
+      <ApiProjectList endpoint="/api/projects?type=opensource" />
     </main>
   );
 }

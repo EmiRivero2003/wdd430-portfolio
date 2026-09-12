@@ -1,3 +1,5 @@
+import ApiProjectList from "@/components/ApiProjectList";
+
 export default function ProjectsPage() {
   return (
     <main className="mx-auto w-full max-w-5xl px-6 py-16">
@@ -13,6 +15,8 @@ export default function ProjectsPage() {
         Explore my open source and school projects, where I apply modern
         development tools to build practical and maintainable solutions.
       </p>
+
+      <ApiProjectList endpoint="/api/projects" />
     </main>
   );
 }
