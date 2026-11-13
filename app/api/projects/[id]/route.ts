@@ -1,3 +1,4 @@
+
 import { NextResponse } from "next/server";
 import { getProjectById } from "@/lib/projects-db";
 
@@ -15,7 +16,7 @@ export async function GET(
     );
   }
 
-  const project = getProjectById(id);
+  const project = await getProjectById(id);
 
   if (!project) {
     return NextResponse.json(
