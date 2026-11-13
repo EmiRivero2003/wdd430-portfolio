@@ -1,6 +1,12 @@
-import ApiProjectList from "@/components/ApiProjectList";
 
-export default function SchoolProjectsPage() {
+import ProjectList from "@/components/ProjectList";
+import { getProjects } from "@/lib/projects-db";
+
+export const dynamic = "force-dynamic";
+
+export default async function SchoolProjectsPage() {
+  const projects = await getProjects("school");
+
   return (
     <main className="mx-auto w-full max-w-5xl px-6 py-16">
       <p className="mb-4 text-sm font-semibold uppercase tracking-[0.25em] text-blue-400">
@@ -16,7 +22,7 @@ export default function SchoolProjectsPage() {
         have developed throughout my software development courses.
       </p>
 
-      <ApiProjectList endpoint="/api/projects?type=school" />
+      <ProjectList projects={projects} />
     </main>
   );
 }

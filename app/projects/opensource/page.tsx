@@ -1,6 +1,12 @@
-import ApiProjectList from "@/components/ApiProjectList";
 
-export default function OpenSourceProjectsPage() {
+import ProjectList from "@/components/ProjectList";
+import { getProjects } from "@/lib/projects-db";
+
+export const dynamic = "force-dynamic";
+
+export default async function OpenSourceProjectsPage() {
+  const projects = await getProjects("opensource");
+
   return (
     <main className="mx-auto w-full max-w-5xl px-6 py-16">
       <p className="mb-4 text-sm font-semibold uppercase tracking-[0.25em] text-blue-400">
@@ -16,7 +22,7 @@ export default function OpenSourceProjectsPage() {
         and continued improvement.
       </p>
 
-      <ApiProjectList endpoint="/api/projects?type=opensource" />
+      <ProjectList projects={projects} />
     </main>
   );
 }
