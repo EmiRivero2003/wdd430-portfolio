@@ -1,12 +1,11 @@
 
-import ProjectList from "@/components/ProjectList";
-import { getProjects } from "@/lib/projects-db";
+import { Suspense } from "react";
+import SchoolProjectList from "@/components/SchoolProjectList";
+import ProjectCardSkeleton from "@/components/ProjectCardSkeleton";
 
 export const dynamic = "force-dynamic";
 
-export default async function ProjectsPage() {
-  const projects = await getProjects();
-
+export default function SchoolProjectsPage() {
   return (
     <main className="mx-auto w-full max-w-5xl px-6 py-16">
       <p className="mb-4 text-sm font-semibold uppercase tracking-[0.25em] text-blue-400">
@@ -14,15 +13,17 @@ export default async function ProjectsPage() {
       </p>
 
       <h1 className="mb-6 text-4xl font-bold text-white">
-        Projects Overview
+        School Projects
       </h1>
 
       <p className="max-w-2xl text-lg leading-8 text-slate-300">
-        Explore my open source and school projects, where I apply modern
-        development tools to build practical and maintainable solutions.
+        These academic projects demonstrate the skills and technologies I
+        have developed throughout my software development courses.
       </p>
 
-      <ProjectList projects={projects} />
+      <Suspense fallback={<ProjectCardSkeleton />}>
+        <SchoolProjectList />
+      </Suspense>
     </main>
   );
 }
