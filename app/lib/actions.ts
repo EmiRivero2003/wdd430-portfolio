@@ -6,69 +6,115 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDatabase } from "@/lib/projects-db";
 
-// Project validation schema
+// Validation rules shared by project forms
 const ProjectFormSchema = z.object({
-  title: z.string().trim().min(2, "Title is too short"),
+  title: z
+    .string()
+    .trim()
+    .min(3, "Title must be at least 3 characters."),
+
   description: z
     .string()
     .trim()
-    .min(10, "Description is too short"),
+    .min(20, "Description must be at least 20 characters."),
+
   technologies: z
     .string()
     .trim()
-    .min(2, "Technologies are required"),
+    .min(2, "Add at least one technology.")
+    .refine(
+      (value) =>
+        value.split(",").some((tech) => tech.trim().length > 0),
+      "Add at least one valid technology."
+    ),
+
   type: z.enum(["opensource", "school"]),
-  link: z.union([z.literal(""), z.url()]),
+
+  link: z.union([
+    z.literal(""),
+    z.url("Enter a valid project URL."),
+  ]),
 });
 
-// Restrict mutations to local development
+// Create form includes year validation
+const CreateProjectSchema = ProjectFormSchema.extend({
+  yearCompleted: z
+    .string()
+    .trim()
+    .regex(/^\d{4}$/, "Enter a valid four-digit year.")
+    .transform(Number)
+    .pipe(
+      z
+        .number()
+        .int()
+        .min(2000, "Year must be 2000 or later.")
+        .max(
+          new Date().getFullYear(),
+          "Year cannot be in the future."
+        )
+    ),
+});
+
+// State returned to useActionState
+export type State = {
+  errors?: {
+    title?: string[];
+    description?: string[];
+    technologies?: string[];
+    type?: string[];
+    link?: string[];
+    yearCompleted?: string[];
+  };
+  message: string | null;
+};
+
+// Restrict mutations to development
 function checkDevelopmentAccess() {
   if (process.env.NODE_ENV !== "development") {
     throw new Error("Project management is disabled.");
   }
 }
 
-// Revalidate project routes
+// Refresh project pages after mutations
 function refreshProjectPages() {
   revalidatePath("/projects");
   revalidatePath("/projects/opensource");
   revalidatePath("/projects/school");
 }
 
-// Validate project form data
-function validateProject(formData: FormData) {
-  const parsed = ProjectFormSchema.safeParse({
+// CREATE PROJECT WITH useActionState
+export async function createProject(
+  prevState: State,
+  formData: FormData
+): Promise<State> {
+  checkDevelopmentAccess();
+
+  const validatedFields = CreateProjectSchema.safeParse({
     title: formData.get("title"),
     description: formData.get("description"),
     technologies: formData.get("technologies"),
     type: formData.get("type"),
     link: formData.get("link") ?? "",
+    yearCompleted: formData.get("yearCompleted"),
   });
 
-  if (!parsed.success) {
-    throw new Error(
-      "Invalid project information. Please check all fields."
-    );
+  // Return field-level validation errors
+  if (!validatedFields.success) {
+    return {
+      errors: z.flattenError(validatedFields.error).fieldErrors,
+      message:
+        "Missing or invalid fields. Please check your information.",
+    };
   }
 
-  const technologiesArray = parsed.data.technologies
-    .split(",")
-    .map((technology) => technology.trim())
-    .filter(Boolean);
-
-  if (technologiesArray.length === 0) {
-    throw new Error("At least one technology is required.");
-  }
-
-  return parsed.data;
-}
-
-// CREATE PROJECT
-export async function createProject(formData: FormData) {
-  checkDevelopmentAccess();
-
-  const { title, description, technologies, type, link } =
-    validateProject(formData);
+  const {
+    title,
+    description,
+    technologies,
+    type,
+    link,
+    yearCompleted,
+  } = validatedFields.data;
 
   try {
     const sql = getDatabase();
@@ -79,7 +125,8 @@ export async function createProject(formData: FormData) {
         description,
         technologies,
         type,
-        link
+        link,
+        year_completed
       )
       VALUES (
         ${title},
@@ -92,14 +139,18 @@ export async function createProject(formData: FormData) {
           WHERE btrim(value) <> ''
         ),
         ${type},
-        ${link || null}
+        ${link || null},
+        ${yearCompleted}
       )
     `;
   } catch (error) {
     console.error("Error creating project:", error);
-    throw new Error(
-      "Failed to create project. Please try again later."
-    );
+
+    return {
+      errors: {},
+      message:
+        "Database Error: Failed to create project. Please try again.",
+    };
   }
 
   refreshProjectPages();
@@ -117,8 +168,27 @@ export async function updateProject(
     throw new Error("Invalid project ID.");
   }
 
-  const { title, description, technologies, type, link } =
-    validateProject(formData);
+  const parsed = ProjectFormSchema.safeParse({
+    title: formData.get("title"),
+    description: formData.get("description"),
+    technologies: formData.get("technologies"),
+    type: formData.get("type"),
+    link: formData.get("link") ?? "",
+  });
+
+  if (!parsed.success) {
+    throw new Error(
+      "Invalid project information. Please check all fields."
+    );
+  }
+
+  const {
+    title,
+    description,
+    technologies,
+    type,
+    link,
+  } = parsed.data;
 
   try {
     const sql = getDatabase();
@@ -151,7 +221,9 @@ export async function updateProject(
       error instanceof Error &&
       error.message === "PROJECT_NOT_FOUND"
     ) {
-      throw new Error("The requested project no longer exists.");
+      throw new Error(
+        "The requested project no longer exists."
+      );
     }
 
     throw new Error(
@@ -190,7 +262,9 @@ export async function deleteProject(id: number) {
       error instanceof Error &&
       error.message === "PROJECT_NOT_FOUND"
     ) {
-      throw new Error("The requested project no longer exists.");
+      throw new Error(
+        "The requested project no longer exists."
+      );
     }
 
     throw new Error(
