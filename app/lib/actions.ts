@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDatabase } from "@/lib/projects-db";
 
-// Project form validation schema
+// Project validation schema
 const ProjectFormSchema = z.object({
   title: z.string().trim().min(2, "Title is too short"),
   description: z
@@ -21,24 +21,22 @@ const ProjectFormSchema = z.object({
   link: z.union([z.literal(""), z.url()]),
 });
 
-// Allow mutations only in local development
+// Restrict mutations to local development
 function checkDevelopmentAccess() {
   if (process.env.NODE_ENV !== "development") {
     throw new Error("Project management is disabled.");
   }
 }
 
-// Refresh all project pages after a mutation
+// Revalidate project routes
 function refreshProjectPages() {
   revalidatePath("/projects");
   revalidatePath("/projects/opensource");
   revalidatePath("/projects/school");
 }
 
-// CREATE PROJECT
-export async function createProject(formData: FormData) {
-  checkDevelopmentAccess();
-
+// Validate project form data
+function validateProject(formData: FormData) {
   const parsed = ProjectFormSchema.safeParse({
     title: formData.get("title"),
     description: formData.get("description"),
@@ -48,44 +46,63 @@ export async function createProject(formData: FormData) {
   });
 
   if (!parsed.success) {
-    throw new Error("Invalid project input.");
+    throw new Error(
+      "Invalid project information. Please check all fields."
+    );
   }
 
-  const {
-    title,
-    description,
-    technologies,
-    type,
-    link,
-  } = parsed.data;
+  const technologiesArray = parsed.data.technologies
+    .split(",")
+    .map((technology) => technology.trim())
+    .filter(Boolean);
 
-  const sql = getDatabase();
+  if (technologiesArray.length === 0) {
+    throw new Error("At least one technology is required.");
+  }
 
-  await sql`
-    INSERT INTO projects (
-      title,
-      description,
-      technologies,
-      type,
-      link
-    )
-    VALUES (
-      ${title},
-      ${description},
-      ARRAY(
-        SELECT btrim(value)
-        FROM unnest(
-          string_to_array(${technologies}, ',')
-        ) AS value
-        WHERE btrim(value) <> ''
-      ),
-      ${type},
-      ${link || null}
-    )
-  `;
+  return parsed.data;
+}
+
+// CREATE PROJECT
+export async function createProject(formData: FormData) {
+  checkDevelopmentAccess();
+
+  const { title, description, technologies, type, link } =
+    validateProject(formData);
+
+  try {
+    const sql = getDatabase();
+
+    await sql`
+      INSERT INTO projects (
+        title,
+        description,
+        technologies,
+        type,
+        link
+      )
+      VALUES (
+        ${title},
+        ${description},
+        ARRAY(
+          SELECT btrim(value)
+          FROM unnest(
+            string_to_array(${technologies}, ',')
+          ) AS value
+          WHERE btrim(value) <> ''
+        ),
+        ${type},
+        ${link || null}
+      )
+    `;
+  } catch (error) {
+    console.error("Error creating project:", error);
+    throw new Error(
+      "Failed to create project. Please try again later."
+    );
+  }
 
   refreshProjectPages();
-
   redirect("/projects");
 }
 
@@ -100,52 +117,53 @@ export async function updateProject(
     throw new Error("Invalid project ID.");
   }
 
-  const parsed = ProjectFormSchema.safeParse({
-    title: formData.get("title"),
-    description: formData.get("description"),
-    technologies: formData.get("technologies"),
-    type: formData.get("type"),
-    link: formData.get("link") ?? "",
-  });
+  const { title, description, technologies, type, link } =
+    validateProject(formData);
 
-  if (!parsed.success) {
-    throw new Error("Invalid project input.");
+  try {
+    const sql = getDatabase();
+
+    const result = await sql`
+      UPDATE projects
+      SET
+        title = ${title},
+        description = ${description},
+        technologies = ARRAY(
+          SELECT btrim(value)
+          FROM unnest(
+            string_to_array(${technologies}, ',')
+          ) AS value
+          WHERE btrim(value) <> ''
+        ),
+        type = ${type},
+        link = ${link || null}
+      WHERE id = ${id}
+      RETURNING id
+    `;
+
+    if (result.length === 0) {
+      throw new Error("PROJECT_NOT_FOUND");
+    }
+  } catch (error) {
+    console.error("Error updating project:", error);
+
+    if (
+      error instanceof Error &&
+      error.message === "PROJECT_NOT_FOUND"
+    ) {
+      throw new Error("The requested project no longer exists.");
+    }
+
+    throw new Error(
+      "Failed to update project. Please try again later."
+    );
   }
 
-  const {
-    title,
-    description,
-    technologies,
-    type,
-    link,
-  } = parsed.data;
-
-  const sql = getDatabase();
-
-  await sql`
-    UPDATE projects
-    SET
-      title = ${title},
-      description = ${description},
-      technologies = ARRAY(
-        SELECT btrim(value)
-        FROM unnest(
-          string_to_array(${technologies}, ',')
-        ) AS value
-        WHERE btrim(value) <> ''
-      ),
-      type = ${type},
-      link = ${link || null}
-    WHERE id = ${id}
-  `;
-
   refreshProjectPages();
-
   redirect("/projects");
 }
 
 // DELETE PROJECT
-
 export async function deleteProject(id: number) {
   checkDevelopmentAccess();
 
@@ -153,14 +171,34 @@ export async function deleteProject(id: number) {
     throw new Error("Invalid project ID.");
   }
 
-  const sql = getDatabase();
+  try {
+    const sql = getDatabase();
 
-  await sql`
-    DELETE FROM projects
-    WHERE id = ${id}
-  `;
+    const result = await sql`
+      DELETE FROM projects
+      WHERE id = ${id}
+      RETURNING id
+    `;
+
+    if (result.length === 0) {
+      throw new Error("PROJECT_NOT_FOUND");
+    }
+  } catch (error) {
+    console.error("Error deleting project:", error);
+
+    if (
+      error instanceof Error &&
+      error.message === "PROJECT_NOT_FOUND"
+    ) {
+      throw new Error("The requested project no longer exists.");
+    }
+
+    throw new Error(
+      "Failed to delete project. Please try again later."
+    );
+  }
 
   refreshProjectPages();
-
+  
   redirect("/projects");
 }

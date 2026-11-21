@@ -20,6 +20,7 @@ interface ProjectsPageProps {
 export default async function ProjectsPage({
   searchParams,
 }: ProjectsPageProps) {
+
   const params = await searchParams;
 
   // Validate search parameters
