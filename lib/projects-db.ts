@@ -13,7 +13,7 @@ export interface Project {
 export const ITEMS_PER_PAGE = 6;
 
 // Connect to Neon PostgreSQL
-function getDatabase() {
+export function getDatabase() {
   const databaseUrl = process.env.DATABASE_URL;
 
   if (!databaseUrl) {
